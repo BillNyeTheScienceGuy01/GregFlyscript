@@ -1,221 +1,179 @@
--- GREG'S FIXED WORKING FLY SCRIPT FOR KRNL
--- TextBox-based user fly toggler: type username, and that player can fly
--- Now supports list of usernames, mobile AND desktop support, and PC toggle via E
--- Added: particle + sound + global message effect when fly is activated for a user
-
+-- GREG'S PERSONAL FLY SCRIPT FOR KRNL WITH USAGE GUI
 local player = game.Players.LocalPlayer
 local uis = game:GetService("UserInputService")
 local rs = game:GetService("RunService")
-local ts = game:GetService("TeleportService")
 local mt = getrawmetatable(game)
 setreadonly(mt, false)
 local oldNamecall = mt.__namecall
 
 -- Anti-Kick and Anti-Ban Hook
 mt.__namecall = newcclosure(function(self, ...)
-	local args = {...}
-	local method = getnamecallmethod()
-	if method == "Kick" or tostring(self) == "Kick" then
-		warn("[GREG ANTI-KICK] Blocked kick attempt!")
-		return nil
-	end
-	return oldNamecall(self, unpack(args))
+    local args = {...}
+    local method = getnamecallmethod()
+    if method == "Kick" or tostring(self) == "Kick" then
+        warn("[GREG ANTI-KICK] Blocked kick attempt!")
+        return nil
+    end
+    return oldNamecall(self, unpack(args))
 end)
 
 local speed = 50
-local activeBodies = {}
-local currentFlyList = {}
-local flying = false -- for local E toggle
+local flying = false
+local bodyVel = nil
 
 function announceFly(targetPlayer)
-	-- Sound Effect
-	local sfx = Instance.new("Sound")
-	sfx.SoundId = "rbxassetid://104537552188658" -- wings sound or customize
-	sfx.Volume = 3
-	sfx.PlayOnRemove = true
-	sfx.Parent = targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") or workspace
-	sfx:Destroy() -- plays instantly
+    -- Sound Effect
+    local sfx = Instance.new("Sound")
+    sfx.SoundId = "rbxassetid://104537552188658" -- wings sound or customize
+    sfx.Volume = 3
+    sfx.PlayOnRemove = true
+    sfx.Parent = targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") or workspace
+    sfx:Destroy() -- plays instantly
 
-	-- Particles
-	local particle = Instance.new("ParticleEmitter")
-	particle.Texture = "rbxassetid://301055640" -- sparkle texture
-	particle.Rate = 200
-	particle.Lifetime = NumberRange.new(0.5)
-	particle.Speed = NumberRange.new(10)
-	particle.Parent = targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") or workspace
-	game.Debris:AddItem(particle, 1)
+    -- Particles
+    local particle = Instance.new("ParticleEmitter")
+    particle.Texture = "rbxassetid://301055640" -- sparkle texture
+    particle.Rate = 200
+    particle.Lifetime = NumberRange.new(0.5)
+    particle.Speed = NumberRange.new(10)
+    particle.Parent = targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") or workspace
+    game.Debris:AddItem(particle, 1)
 
-	-- Message
-	game.StarterGui:SetCore("ChatMakeSystemMessage", {
-		Text = "[GREG] " .. targetPlayer.Name .. " has taken flight!",
-		Color = Color3.fromRGB(0,255,200),
-		Font = Enum.Font.GothamBold,
-		TextSize = 20
-	})
+    -- Message
+    game.StarterGui:SetCore("ChatMakeSystemMessage", {
+        Text = "[GREG] " .. targetPlayer.Name .. " has taken flight!",
+        Color = Color3.fromRGB(0,255,200),
+        Font = Enum.Font.GothamBold,
+        TextSize = 20
+    })
 end
 
-function startFly(char, username)
-	local hrp = char:WaitForChild("HumanoidRootPart")
-	if hrp:FindFirstChild("GregVelocity") then return end
-	local bodyVel = Instance.new("BodyVelocity")
-	bodyVel.MaxForce = Vector3.new(1e5, 1e5, 1e5)
-	bodyVel.P = 1250
-	bodyVel.Velocity = Vector3.zero
-	bodyVel.Name = "GregVelocity"
-	bodyVel.Parent = hrp
-	activeBodies[username] = bodyVel
+local function startFly(char)
+    local hrp = char:WaitForChild("HumanoidRootPart")
+    if hrp:FindFirstChild("GregVelocity") then return end
+    bodyVel = Instance.new("BodyVelocity")
+    bodyVel.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+    bodyVel.P = 1250
+    bodyVel.Velocity = Vector3.zero
+    bodyVel.Name = "GregVelocity"
+    bodyVel.Parent = hrp
 
-	rs:BindToRenderStep("GregFly_"..username, Enum.RenderPriority.Input.Value, function()
-		if not bodyVel or not hrp then return end
-		local cam = workspace.CurrentCamera
-		local moveDir = Vector3.zero
+    rs:BindToRenderStep("GregFly", Enum.RenderPriority.Input.Value, function()
+        if not bodyVel or not hrp then return end
+        local cam = workspace.CurrentCamera
+        local moveDir = Vector3.zero
 
-		-- Keyboard input (PC)
-		if uis:IsKeyDown(Enum.KeyCode.W) then moveDir += cam.CFrame.LookVector end
-		if uis:IsKeyDown(Enum.KeyCode.S) then moveDir -= cam.CFrame.LookVector end
-		if uis:IsKeyDown(Enum.KeyCode.A) then moveDir -= cam.CFrame.RightVector end
-		if uis:IsKeyDown(Enum.KeyCode.D) then moveDir += cam.CFrame.RightVector end
-		if uis:IsKeyDown(Enum.KeyCode.Space) then moveDir += Vector3.new(0, 1, 0) end
-		if uis:IsKeyDown(Enum.KeyCode.LeftShift) then moveDir -= Vector3.new(0, 1, 0) end
+        -- Keyboard input (PC)
+        if uis:IsKeyDown(Enum.KeyCode.W) then moveDir += cam.CFrame.LookVector end
+        if uis:IsKeyDown(Enum.KeyCode.S) then moveDir -= cam.CFrame.LookVector end
+        if uis:IsKeyDown(Enum.KeyCode.A) then moveDir -= cam.CFrame.RightVector end
+        if uis:IsKeyDown(Enum.KeyCode.D) then moveDir += cam.CFrame.RightVector end
+        if uis:IsKeyDown(Enum.KeyCode.Space) then moveDir += Vector3.new(0, 1, 0) end
+        if uis:IsKeyDown(Enum.KeyCode.LeftShift) then moveDir -= Vector3.new(0, 1, 0) end
 
-		-- Joystick buttons (mobile)
-		if _G.GregMobileMove then
-			moveDir += _G.GregMobileMove
-		end
+        -- Joystick buttons (mobile)
+        if _G.GregMobileMove then
+            moveDir += _G.GregMobileMove
+        end
 
-		bodyVel.Velocity = moveDir.Magnitude > 0 and moveDir.Unit * speed or Vector3.zero
-	end)
+        bodyVel.Velocity = moveDir.Magnitude > 0 and moveDir.Unit * speed or Vector3.zero
+    end)
 end
 
-function stopFly(username)
-	rs:UnbindFromRenderStep("GregFly_"..username)
-	if activeBodies[username] then
-		activeBodies[username]:Destroy()
-		activeBodies[username] = nil
-	end
+local function stopFly()
+    rs:UnbindFromRenderStep("GregFly")
+    if bodyVel then
+        bodyVel:Destroy()
+        bodyVel = nil
+    end
 end
 
--- Morph-to-player function (username based)
-local function morphTo(username)
-	local success, userId = pcall(function()
-		return game.Players:GetUserIdFromNameAsync(username)
-	end)
-	if success and userId then
-		local morphHumanoidDesc = game.Players:GetHumanoidDescriptionFromUserId(userId)
-		if player.Character then
-			player.Character:FindFirstChildOfClass("Humanoid"):ApplyDescription(morphHumanoidDesc)
-			warn("[GREG MORPH] Morphed into " .. username)
-		else
-			warn("[GREG MORPH] Character not found")
-		end
-	else
-		warn("[GREG MORPH] Failed to get user ID for " .. username)
-	end
-end
-
--- GUI in the center with textbox
+-- Instruction GUI
 local gui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
-local box = Instance.new("TextBox")
-box.Size = UDim2.new(0, 300, 0, 40)
-box.Position = UDim2.new(0.5, -150, 0.5, -20)
-box.PlaceholderText = "Type usernames separated by commas"
-box.Text = ""
-box.TextScaled = true
-box.BackgroundColor3 = Color3.fromRGB(30,30,30)
-box.TextColor3 = Color3.fromRGB(255,255,255)
-box.Font = Enum.Font.GothamSemibold
-box.Parent = gui
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 280, 0, 120)
+frame.Position = UDim2.new(0.5, -140, 0.1, 0)
+frame.BackgroundColor3 = Color3.fromRGB(30,30,30)
+frame.BackgroundTransparency = 0.4
+frame.BorderSizePixel = 0
+frame.Parent = gui
 
-local button = Instance.new("TextButton")
-button.Size = UDim2.new(0, 100, 0, 40)
-button.Position = UDim2.new(0.5, -50, 0.5, 30)
-button.Text = "Activate Fly"
-button.TextScaled = true
-button.Font = Enum.Font.GothamBold
-button.BackgroundColor3 = Color3.fromRGB(40,40,40)
-button.TextColor3 = Color3.new(1,1,1)
-button.Parent = gui
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 30)
+title.BackgroundTransparency = 1
+title.Text = "Greg Fly Script"
+title.TextColor3 = Color3.fromRGB(0, 255, 200)
+title.Font = Enum.Font.GothamBold
+title.TextSize = 26
+title.Parent = frame
+
+local instructions = {
+    "Press E to toggle fly",
+    "Use WASD + Space + Shift to move",
+    "Mobile users: Use joystick buttons"
+}
+
+for i, text in ipairs(instructions) do
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, -20, 0, 25)
+    label.Position = UDim2.new(0, 10, 0, 30 + (i-1)*30)
+    label.BackgroundTransparency = 1
+    label.Text = text
+    label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    label.Font = Enum.Font.GothamSemibold
+    label.TextSize = 20
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = frame
+end
 
 -- Joystick GUI for mobile
 if uis.TouchEnabled then
-	_G.GregMobileMove = Vector3.zero
-	local directions = {
-		{Key = "↑", Vec = Vector3.new(0,1,0), Pos = UDim2.new(0.85, -30, 0.5, -80)},
-		{Key = "↓", Vec = Vector3.new(0,-1,0), Pos = UDim2.new(0.85, -30, 0.5, 40)},
-		{Key = "←", Vec = Vector3.new(-1,0,0), Pos = UDim2.new(0.85, -80, 0.5, -20)},
-		{Key = "→", Vec = Vector3.new(1,0,0), Pos = UDim2.new(0.85, 20, 0.5, -20)}
-	}
-	for _, dir in pairs(directions) do
-		local b = Instance.new("TextButton")
-		b.Size = UDim2.new(0,40,0,40)
-		b.Position = dir.Pos
-		b.Text = dir.Key
-		b.BackgroundColor3 = Color3.fromRGB(40,40,40)
-		b.TextColor3 = Color3.new(1,1,1)
-		b.Parent = gui
+    _G.GregMobileMove = Vector3.zero
+    local directions = {
+        {Key = "↑", Vec = Vector3.new(0,1,0), Pos = UDim2.new(0.85, -30, 0.5, -80)},
+        {Key = "↓", Vec = Vector3.new(0,-1,0), Pos = UDim2.new(0.85, -30, 0.5, 40)},
+        {Key = "←", Vec = Vector3.new(-1,0,0), Pos = UDim2.new(0.85, -80, 0.5, -20)},
+        {Key = "→", Vec = Vector3.new(1,0,0), Pos = UDim2.new(0.85, 20, 0.5, -20)}
+    }
+    for _, dir in pairs(directions) do
+        local b = Instance.new("TextButton")
+        b.Size = UDim2.new(0,40,0,40)
+        b.Position = dir.Pos
+        b.Text = dir.Key
+        b.BackgroundColor3 = Color3.fromRGB(40,40,40)
+        b.TextColor3 = Color3.new(1,1,1)
+        b.Parent = gui
 
-		b.MouseButton1Down:Connect(function()
-			_G.GregMobileMove += dir.Vec
-		end)
-		b.MouseButton1Up:Connect(function()
-			_G.GregMobileMove -= dir.Vec
-		end)
-	end
+        b.MouseButton1Down:Connect(function()
+            _G.GregMobileMove += dir.Vec
+        end)
+        b.MouseButton1Up:Connect(function()
+            _G.GregMobileMove -= dir.Vec
+        end)
+    end
 end
 
-local function activateUsers(text)
-	local input = text:split(",")
-	currentFlyList = {}
-	for _, username in pairs(input) do
-		username = username:match("^%s*(.-)%s*$")
-		table.insert(currentFlyList, username)
-		local target = game.Players:FindFirstChild(username)
-		if target and target.Character then
-			startFly(target.Character, username)
-			announceFly(target)
-			warn("[GREGFLY] "..username.." is now flying.")
-		else
-			warn("[GREGFLY] Player not found: "..username)
-		end
-	end
-end
-
-box.FocusLost:Connect(function(enter)
-	if enter and box.Text ~= "" then
-		activateUsers(box.Text)
-	end
-end)
-
-button.MouseButton1Click:Connect(function()
-	if box.Text ~= "" then
-		activateUsers(box.Text)
-	end
-end)
-
--- Safety rebind on respawn
+-- Reapply fly on respawn if flying
 player.CharacterAdded:Connect(function(char)
-	wait(1)
-	for _, username in pairs(currentFlyList) do
-		local target = game.Players:FindFirstChild(username)
-		if target and target.Character then
-			startFly(target.Character, username)
-		end
-	end
+    wait(1)
+    if flying and player.Character then
+        startFly(player.Character)
+    end
 end)
 
--- Press E to toggle YOUR fly
+-- Toggle fly on E
 uis.InputBegan:Connect(function(input, gpe)
-	if gpe then return end
-	if input.KeyCode == Enum.KeyCode.E then
-		if flying then
-			stopFly(player.Name)
-			flying = false
-		else
-			if player.Character then
-				startFly(player.Character, player.Name)
-				announceFly(player)
-				flying = true
-			end
-		end
-	end
+    if gpe then return end
+    if input.KeyCode == Enum.KeyCode.E then
+        if flying then
+            stopFly()
+            flying = false
+        else
+            if player.Character then
+                startFly(player.Character)
+                announceFly(player)
+                flying = true
+            end
+        end
+    end
 end)
