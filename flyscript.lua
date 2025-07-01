@@ -1,4 +1,4 @@
--- GREG'S PERSONAL FLY SCRIPT FOR KRNL WITH USAGE GUI
+-- GREG'S PERSONAL FLY SCRIPT FOR KRNL WITH PLATFORM DETECTION & EXIT
 local player = game.Players.LocalPlayer
 local uis = game:GetService("UserInputService")
 local rs = game:GetService("RunService")
@@ -151,6 +151,20 @@ if uis.TouchEnabled then
             _G.GregMobileMove -= dir.Vec
         end)
     end
+
+    -- Exit mobile controls on PC
+    local exitMobileControlsButton = Instance.new("TextButton")
+    exitMobileControlsButton.Size = UDim2.new(0, 120, 0, 40)
+    exitMobileControlsButton.Position = UDim2.new(0.85, -150, 0.8, -40)
+    exitMobileControlsButton.Text = "Exit Mobile Controls"
+    exitMobileControlsButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+    exitMobileControlsButton.TextColor3 = Color3.new(1, 1, 1)
+    exitMobileControlsButton.Parent = gui
+
+    exitMobileControlsButton.MouseButton1Click:Connect(function()
+        _G.GregMobileMove = Vector3.zero
+        exitMobileControlsButton:Destroy()
+    end)
 end
 
 -- Reapply fly on respawn if flying
