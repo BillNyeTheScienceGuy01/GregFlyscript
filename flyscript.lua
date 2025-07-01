@@ -1,6 +1,6 @@
 -- GREG'S FIXED WORKING FLY SCRIPT FOR KRNL
 -- TextBox-based user fly toggler: type username, and that player can fly
--- Now supports a list of usernames + mobile button
+-- Now supports list of usernames, mobile AND desktop support, and PC toggle via E
 
 local player = game.Players.LocalPlayer
 local uis = game:GetService("UserInputService")
@@ -24,6 +24,7 @@ end)
 local speed = 50
 local activeBodies = {}
 local currentFlyList = {}
+local flying = false -- for local E toggle
 
 function startFly(char, username)
 	local hrp = char:WaitForChild("HumanoidRootPart")
@@ -40,17 +41,21 @@ function startFly(char, username)
 		if not bodyVel or not hrp then return end
 		local cam = workspace.CurrentCamera
 		local moveDir = Vector3.zero
+
+		-- Keyboard input (PC)
 		if uis:IsKeyDown(Enum.KeyCode.W) then moveDir += cam.CFrame.LookVector end
 		if uis:IsKeyDown(Enum.KeyCode.S) then moveDir -= cam.CFrame.LookVector end
 		if uis:IsKeyDown(Enum.KeyCode.A) then moveDir -= cam.CFrame.RightVector end
 		if uis:IsKeyDown(Enum.KeyCode.D) then moveDir += cam.CFrame.RightVector end
 		if uis:IsKeyDown(Enum.KeyCode.Space) then moveDir += Vector3.new(0, 1, 0) end
 		if uis:IsKeyDown(Enum.KeyCode.LeftShift) then moveDir -= Vector3.new(0, 1, 0) end
-		if moveDir.Magnitude > 0 then
-			bodyVel.Velocity = moveDir.Unit * speed
-		else
-			bodyVel.Velocity = Vector3.zero
+
+		-- Mobile fallback (automatic upward drift)
+		if uis.TouchEnabled and moveDir == Vector3.zero then
+			moveDir = cam.CFrame.LookVector + Vector3.new(0, 0.25, 0)
 		end
+
+		bodyVel.Velocity = moveDir.Magnitude > 0 and moveDir.Unit * speed or Vector3.zero
 	end)
 end
 
@@ -138,6 +143,22 @@ player.CharacterAdded:Connect(function(char)
 		local target = game.Players:FindFirstChild(username)
 		if target and target.Character then
 			startFly(target.Character, username)
+		end
+	end
+end)
+
+-- Press E to toggle YOUR fly
+uis.InputBegan:Connect(function(input, gpe)
+	if gpe then return end
+	if input.KeyCode == Enum.KeyCode.E then
+		if flying then
+			stopFly(player.Name)
+			flying = false
+		else
+			if player.Character then
+				startFly(player.Character, player.Name)
+				flying = true
+			end
 		end
 	end
 end)
