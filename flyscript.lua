@@ -1,6 +1,6 @@
 -- GREG'S FIXED WORKING FLY SCRIPT FOR KRNL
 -- TextBox-based user fly toggler: type username, and that player can fly
--- Now supports a list of usernames
+-- Now supports a list of usernames + mobile button
 
 local player = game.Players.LocalPlayer
 local uis = game:GetService("UserInputService")
@@ -23,6 +23,7 @@ end)
 
 local speed = 50
 local activeBodies = {}
+local currentFlyList = {}
 
 function startFly(char, username)
 	local hrp = char:WaitForChild("HumanoidRootPart")
@@ -92,26 +93,48 @@ box.TextColor3 = Color3.fromRGB(255,255,255)
 box.Font = Enum.Font.GothamSemibold
 box.Parent = gui
 
+local button = Instance.new("TextButton")
+button.Size = UDim2.new(0, 100, 0, 40)
+button.Position = UDim2.new(0.5, -50, 0.5, 30)
+button.Text = "Activate Fly"
+button.TextScaled = true
+button.Font = Enum.Font.GothamBold
+button.BackgroundColor3 = Color3.fromRGB(40,40,40)
+button.TextColor3 = Color3.new(1,1,1)
+button.Parent = gui
+
+local function activateUsers(text)
+	local input = text:split(",")
+	currentFlyList = {}
+	for _, username in pairs(input) do
+		username = username:match("^%s*(.-)%s*$")
+		table.insert(currentFlyList, username)
+		local target = game.Players:FindFirstChild(username)
+		if target and target.Character then
+			startFly(target.Character, username)
+			warn("[GREGFLY] "..username.." is now flying.")
+		else
+			warn("[GREGFLY] Player not found: "..username)
+		end
+	end
+end
+
 box.FocusLost:Connect(function(enter)
 	if enter and box.Text ~= "" then
-		local input = box.Text:split(",")
-		for _, username in pairs(input) do
-			username = username:match("^%s*(.-)%s*$") -- trim whitespace
-			local target = game.Players:FindFirstChild(username)
-			if target and target.Character then
-				startFly(target.Character, username)
-				warn("[GREGFLY] "..username.." is now flying.")
-			else
-				warn("[GREGFLY] Player not found: "..username)
-			end
-		end
+		activateUsers(box.Text)
+	end
+end)
+
+button.MouseButton1Click:Connect(function()
+	if box.Text ~= "" then
+		activateUsers(box.Text)
 	end
 end)
 
 -- Safety rebind on respawn
 player.CharacterAdded:Connect(function(char)
 	wait(1)
-	for username, _ in pairs(activeBodies) do
+	for _, username in pairs(currentFlyList) do
 		local target = game.Players:FindFirstChild(username)
 		if target and target.Character then
 			startFly(target.Character, username)
