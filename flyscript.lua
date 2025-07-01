@@ -1,6 +1,7 @@
 -- GREG'S FIXED WORKING FLY SCRIPT FOR KRNL
 -- TextBox-based user fly toggler: type username, and that player can fly
 -- Now supports list of usernames, mobile AND desktop support, and PC toggle via E
+-- Added: particle + sound + global message effect when fly is activated for a user
 
 local player = game.Players.LocalPlayer
 local uis = game:GetService("UserInputService")
@@ -25,6 +26,33 @@ local speed = 50
 local activeBodies = {}
 local currentFlyList = {}
 local flying = false -- for local E toggle
+
+function announceFly(targetPlayer)
+	-- Sound Effect
+	local sfx = Instance.new("Sound")
+	sfx.SoundId = "rbxassetid://104537552188658" -- wings sound or customize
+	sfx.Volume = 3
+	sfx.PlayOnRemove = true
+	sfx.Parent = targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") or workspace
+	sfx:Destroy() -- plays instantly
+
+	-- Particles
+	local particle = Instance.new("ParticleEmitter")
+	particle.Texture = "rbxassetid://301055640" -- sparkle texture
+	particle.Rate = 200
+	particle.Lifetime = NumberRange.new(0.5)
+	particle.Speed = NumberRange.new(10)
+	particle.Parent = targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") or workspace
+	game.Debris:AddItem(particle, 1)
+
+	-- Message
+	game.StarterGui:SetCore("ChatMakeSystemMessage", {
+		Text = "[GREG] " .. targetPlayer.Name .. " has taken flight!",
+		Color = Color3.fromRGB(0,255,200),
+		Font = Enum.Font.GothamBold,
+		TextSize = 20
+	})
+end
 
 function startFly(char, username)
 	local hrp = char:WaitForChild("HumanoidRootPart")
@@ -144,6 +172,7 @@ local function activateUsers(text)
 		local target = game.Players:FindFirstChild(username)
 		if target and target.Character then
 			startFly(target.Character, username)
+			announceFly(target)
 			warn("[GREGFLY] "..username.." is now flying.")
 		else
 			warn("[GREGFLY] Player not found: "..username)
@@ -184,6 +213,7 @@ uis.InputBegan:Connect(function(input, gpe)
 		else
 			if player.Character then
 				startFly(player.Character, player.Name)
+				announceFly(player)
 				flying = true
 			end
 		end
