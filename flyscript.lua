@@ -50,9 +50,9 @@ function startFly(char, username)
 		if uis:IsKeyDown(Enum.KeyCode.Space) then moveDir += Vector3.new(0, 1, 0) end
 		if uis:IsKeyDown(Enum.KeyCode.LeftShift) then moveDir -= Vector3.new(0, 1, 0) end
 
-		-- Mobile fallback (automatic upward drift)
-		if uis.TouchEnabled and moveDir == Vector3.zero then
-			moveDir = cam.CFrame.LookVector + Vector3.new(0, 0.25, 0)
+		-- Joystick buttons (mobile)
+		if _G.GregMobileMove then
+			moveDir += _G.GregMobileMove
 		end
 
 		bodyVel.Velocity = moveDir.Magnitude > 0 and moveDir.Unit * speed or Vector3.zero
@@ -107,6 +107,33 @@ button.Font = Enum.Font.GothamBold
 button.BackgroundColor3 = Color3.fromRGB(40,40,40)
 button.TextColor3 = Color3.new(1,1,1)
 button.Parent = gui
+
+-- Joystick GUI for mobile
+if uis.TouchEnabled then
+	_G.GregMobileMove = Vector3.zero
+	local directions = {
+		{Key = "↑", Vec = Vector3.new(0,1,0), Pos = UDim2.new(0.85, -30, 0.5, -80)},
+		{Key = "↓", Vec = Vector3.new(0,-1,0), Pos = UDim2.new(0.85, -30, 0.5, 40)},
+		{Key = "←", Vec = Vector3.new(-1,0,0), Pos = UDim2.new(0.85, -80, 0.5, -20)},
+		{Key = "→", Vec = Vector3.new(1,0,0), Pos = UDim2.new(0.85, 20, 0.5, -20)}
+	}
+	for _, dir in pairs(directions) do
+		local b = Instance.new("TextButton")
+		b.Size = UDim2.new(0,40,0,40)
+		b.Position = dir.Pos
+		b.Text = dir.Key
+		b.BackgroundColor3 = Color3.fromRGB(40,40,40)
+		b.TextColor3 = Color3.new(1,1,1)
+		b.Parent = gui
+
+		b.MouseButton1Down:Connect(function()
+			_G.GregMobileMove += dir.Vec
+		end)
+		b.MouseButton1Up:Connect(function()
+			_G.GregMobileMove -= dir.Vec
+		end)
+	end
+end
 
 local function activateUsers(text)
 	local input = text:split(",")
