@@ -6,6 +6,7 @@ local RunService = game:GetService("RunService")
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 local hrp = character:WaitForChild("HumanoidRootPart")
+local camera = workspace.CurrentCamera
 
 -- GLOBAL MOBILE MOVE VECTOR (used by flight logic)
 _G.GregMobileMove = Vector3.new(0,0,0)
@@ -44,21 +45,47 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
--- UPDATE VELOCITY EACH FRAME
+-- UPDATE VELOCITY EACH FRAME (FLY RELATIVE TO CAMERA)
 RunService.RenderStepped:Connect(function()
     if flying and velocity then
-        local moveDir = Vector3.new(
+        local camCFrame = camera.CFrame
+
+        -- Keyboard horizontal input
+        local moveInput = Vector3.new(
             (UserInputService:IsKeyDown(Enum.KeyCode.D) and 1 or 0) - (UserInputService:IsKeyDown(Enum.KeyCode.A) and 1 or 0),
-            (UserInputService:IsKeyDown(Enum.KeyCode.Space) and 1 or 0) - (UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) and 1 or 0),
+            0,
             (UserInputService:IsKeyDown(Enum.KeyCode.S) and 1 or 0) - (UserInputService:IsKeyDown(Enum.KeyCode.W) and 1 or 0)
         )
-        moveDir = moveDir + _G.GregMobileMove
 
-        if moveDir.Magnitude > 0 then
-            velocity.Velocity = moveDir.Unit * speed
-        else
-            velocity.Velocity = Vector3.new(0, 0, 0)
+        -- Keyboard vertical input
+        local verticalInput = 0
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+            verticalInput = 1
+        elseif UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
+            verticalInput = -1
         end
+
+        -- Calculate horizontal move vector relative to camera
+        local moveVec = Vector3.new(0,0,0)
+        if moveInput.Magnitude > 0 then
+            local horDir = (camCFrame.RightVector * moveInput.X) + (camCFrame.LookVector * -moveInput.Z)
+            horDir = Vector3.new(horDir.X, 0, horDir.Z).Unit
+            moveVec = horDir * speed
+        end
+
+        -- Add vertical component
+        moveVec = moveVec + Vector3.new(0, verticalInput * speed, 0)
+
+        -- Add mobile movement, transformed like keyboard
+        local mobileVec = _G.GregMobileMove
+        if mobileVec.Magnitude > 0 then
+            local mobileHor = Vector3.new(mobileVec.X, 0, mobileVec.Z)
+            local camMobile = (camCFrame.RightVector * mobileHor.X) + (camCFrame.LookVector * -mobileHor.Z)
+            camMobile = Vector3.new(camMobile.X, 0, camMobile.Z).Unit * mobileHor.Magnitude
+            moveVec = moveVec + camMobile + Vector3.new(0, mobileVec.Y * speed, 0)
+        end
+
+        velocity.Velocity = moveVec
     end
 end)
 
