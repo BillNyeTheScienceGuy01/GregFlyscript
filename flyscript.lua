@@ -1,255 +1,183 @@
--- SERVICES
-local Players = game:GetService("Players")
-local UserInputService = game:GetService("UserInputService")
-local RunService = game:GetService("RunService")
+-- GREG'S PERSONAL FLY SCRIPT FOR KRNL WITH PLATFORM DETECTION & EXIT
+local player = game.Players.LocalPlayer
+local uis = game:GetService("UserInputService")
+local rs = game:GetService("RunService")
+local mt = getrawmetatable(game)
+setreadonly(mt, false)
+local oldNamecall = mt.__namecall
 
-local player = Players.LocalPlayer
-local character = player.Character or player.CharacterAdded:Wait()
-local hrp = character:WaitForChild("HumanoidRootPart")
-local camera = workspace.CurrentCamera
-
--- GLOBAL MOBILE MOVE VECTOR (used by flight logic)
-_G.GregMobileMove = Vector3.new(0,0,0)
-
--- FLY VARIABLES
-local flying = false
-local speed = 50
-local velocity
-
--- ANTI KICK HOOK (optional)
-local oldNamecall
-oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+-- Anti-Kick and Anti-Ban Hook
+mt.__namecall = newcclosure(function(self, ...)
+    local args = {...}
     local method = getnamecallmethod()
-    if method == "Kick" then
-        return wait(9e9)
+    if method == "Kick" or tostring(self) == "Kick" then
+        warn("[GREG ANTI-KICK] Blocked kick attempt!")
+        return nil
     end
-    return oldNamecall(self, ...)
+    return oldNamecall(self, unpack(args))
 end)
 
--- TOGGLE FLY WITH E KEY
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    if input.KeyCode == Enum.KeyCode.E then
-        flying = not flying
-        if flying then
-            velocity = Instance.new("BodyVelocity")
-            velocity.MaxForce = Vector3.new(1e5, 1e5, 1e5)
-            velocity.Parent = hrp
-            velocity.Velocity = Vector3.new(0, 0, 0)
-        else
-            if velocity then
-                velocity:Destroy()
-                velocity = nil
-            end
-        end
-    end
-end)
+local speed = 50
+local flying = false
+local bodyVel = nil
 
--- UPDATE VELOCITY EACH FRAME (FLY RELATIVE TO CAMERA)
-RunService.RenderStepped:Connect(function()
-    if flying and velocity then
-        local camCFrame = camera.CFrame
+function announceFly(targetPlayer)
+    -- Sound Effect
+    local sfx = Instance.new("Sound")
+    sfx.SoundId = "rbxassetid://104537552188658" -- wings sound or customize
+    sfx.Volume = 3
+    sfx.PlayOnRemove = true
+    sfx.Parent = targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") or workspace
+    sfx:Destroy() -- plays instantly
 
-        -- Keyboard horizontal input
-        local moveInput = Vector3.new(
-            (UserInputService:IsKeyDown(Enum.KeyCode.D) and 1 or 0) - (UserInputService:IsKeyDown(Enum.KeyCode.A) and 1 or 0),
-            0,
-            (UserInputService:IsKeyDown(Enum.KeyCode.S) and 1 or 0) - (UserInputService:IsKeyDown(Enum.KeyCode.W) and 1 or 0)
-        )
+    -- Particles
+    local particle = Instance.new("ParticleEmitter")
+    particle.Texture = "rbxassetid://301055640" -- sparkle texture
+    particle.Rate = 200
+    particle.Lifetime = NumberRange.new(0.5)
+    particle.Speed = NumberRange.new(10)
+    particle.Parent = targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") or workspace
+    game.Debris:AddItem(particle, 1)
 
-        -- Keyboard vertical input
-        local verticalInput = 0
-        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
-            verticalInput = 1
-        elseif UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
-            verticalInput = -1
-        end
-
-        -- Calculate horizontal move vector relative to camera
-        local moveVec = Vector3.new(0,0,0)
-        if moveInput.Magnitude > 0 then
-            local horDir = (camCFrame.RightVector * moveInput.X) + (camCFrame.LookVector * -moveInput.Z)
-            horDir = Vector3.new(horDir.X, 0, horDir.Z).Unit
-            moveVec = horDir * speed
-        end
-
-        -- Add vertical component
-        moveVec = moveVec + Vector3.new(0, verticalInput * speed, 0)
-
-        -- Add mobile movement, transformed like keyboard
-        local mobileVec = _G.GregMobileMove
-        if mobileVec.Magnitude > 0 then
-            local mobileHor = Vector3.new(mobileVec.X, 0, mobileVec.Z)
-            local camMobile = (camCFrame.RightVector * mobileHor.X) + (camCFrame.LookVector * -mobileHor.Z)
-            camMobile = Vector3.new(camMobile.X, 0, camMobile.Z).Unit * mobileHor.Magnitude
-            moveVec = moveVec + camMobile + Vector3.new(0, mobileVec.Y * speed, 0)
-        end
-
-        velocity.Velocity = moveVec
-    end
-end)
-
--- ===============================
--- UI SECTION (MOVEABLE + MOBILE FIXED DISMISS)
--- ===============================
-
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "GregFlyGui"
-screenGui.Parent = player:WaitForChild("PlayerGui")
-screenGui.ResetOnSpawn = false
-
--- MAIN FLY FRAME
-local flyFrame = Instance.new("Frame")
-flyFrame.Name = "FlyFrame"
-flyFrame.Size = UDim2.new(0, 270, 0, 120)
-flyFrame.Position = UDim2.new(0.05, 0, 0.7, 0)
-flyFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-flyFrame.BorderSizePixel = 0
-flyFrame.BackgroundTransparency = 0.2
-flyFrame.Parent = screenGui
-
--- FLY FRAME TITLE
-local flyTitle = Instance.new("TextLabel")
-flyTitle.Name = "FlyTitle"
-flyTitle.Size = UDim2.new(1, 0, 0, 30)
-flyTitle.BackgroundTransparency = 1
-flyTitle.Text = "Greg Fly Script"
-flyTitle.Font = Enum.Font.GothamBold
-flyTitle.TextSize = 20
-flyTitle.TextColor3 = Color3.fromRGB(0, 255, 255)
-flyTitle.Parent = flyFrame
-
--- INSTRUCTIONS LABEL
-local flyInstructions = Instance.new("TextLabel")
-flyInstructions.Name = "FlyInstructions"
-flyInstructions.Size = UDim2.new(1, -20, 1, -40)
-flyInstructions.Position = UDim2.new(0, 10, 0, 30)
-flyInstructions.BackgroundTransparency = 1
-flyInstructions.Text = "Press E to toggle fly\nWASD + Space/Shift to move\nDismiss mobile controls below"
-flyInstructions.Font = Enum.Font.Gotham
-flyInstructions.TextSize = 16
-flyInstructions.TextColor3 = Color3.fromRGB(255, 255, 255)
-flyInstructions.TextWrapped = true
-flyInstructions.TextYAlignment = Enum.TextYAlignment.Top
-flyInstructions.Parent = flyFrame
-
--- MOBILE CONTROLS FRAME
-local mobileFrame = Instance.new("Frame")
-mobileFrame.Name = "MobileControls"
-mobileFrame.Size = UDim2.new(0, 260, 0, 160)
-mobileFrame.Position = UDim2.new(0.05, 0, 0.5, 0)
-mobileFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-mobileFrame.BackgroundTransparency = 0.3
-mobileFrame.BorderSizePixel = 0
-mobileFrame.Parent = screenGui
-mobileFrame.Visible = false -- starts hidden, shown by your mobile detection code
-
--- MOBILE TITLE
-local mobileTitle = Instance.new("TextLabel")
-mobileTitle.Name = "MobileTitle"
-mobileTitle.Size = UDim2.new(1, 0, 0, 25)
-mobileTitle.BackgroundTransparency = 1
-mobileTitle.Text = "Mobile Fly Controls"
-mobileTitle.Font = Enum.Font.GothamBold
-mobileTitle.TextSize = 18
-mobileTitle.TextColor3 = Color3.fromRGB(0, 255, 255)
-mobileTitle.Parent = mobileFrame
-
--- MOBILE MOVE BUTTONS (WASD style)
-local function createMobileButton(name, pos, text)
-    local btn = Instance.new("TextButton")
-    btn.Name = name
-    btn.Size = UDim2.new(0, 50, 0, 50)
-    btn.Position = pos
-    btn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-    btn.BorderSizePixel = 0
-    btn.Text = text
-    btn.Font = Enum.Font.GothamBold
-    btn.TextSize = 28
-    btn.TextColor3 = Color3.fromRGB(0, 255, 255)
-    btn.Parent = mobileFrame
-    return btn
+    -- Message
+    game.StarterGui:SetCore("ChatMakeSystemMessage", {
+        Text = "[GREG] " .. targetPlayer.Name .. " has taken flight!",
+        Color = Color3.fromRGB(0,255,200),
+        Font = Enum.Font.GothamBold,
+        TextSize = 20
+    })
 end
 
-local btnW = createMobileButton("BtnW", UDim2.new(0.35, 0, 0.35, 0), "W")
-local btnA = createMobileButton("BtnA", UDim2.new(0.15, 0, 0.65, 0), "A")
-local btnS = createMobileButton("BtnS", UDim2.new(0.35, 0, 0.65, 0), "S")
-local btnD = createMobileButton("BtnD", UDim2.new(0.55, 0, 0.65, 0), "D")
-local btnSpace = createMobileButton("BtnSpace", UDim2.new(0.75, 0, 0.35, 0), "↑")
-local btnShift = createMobileButton("BtnShift", UDim2.new(0.75, 0, 0.65, 0), "↓")
+local function startFly(char)
+    local hrp = char:WaitForChild("HumanoidRootPart")
+    if hrp:FindFirstChild("GregVelocity") then return end
+    bodyVel = Instance.new("BodyVelocity")
+    bodyVel.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+    bodyVel.P = 1250
+    bodyVel.Velocity = Vector3.zero
+    bodyVel.Name = "GregVelocity"
+    bodyVel.Parent = hrp
 
--- MOBILE MOVE STATE TRACKING
-local mobileMoveState = {
-    W = false,
-    A = false,
-    S = false,
-    D = false,
-    Space = false,
-    Shift = false,
+    rs:BindToRenderStep("GregFly", Enum.RenderPriority.Input.Value, function()
+        if not bodyVel or not hrp then return end
+        local cam = workspace.CurrentCamera
+        local moveDir = Vector3.zero
+
+        -- Keyboard input (PC)
+        if uis:IsKeyDown(Enum.KeyCode.W) then moveDir += cam.CFrame.LookVector end
+        if uis:IsKeyDown(Enum.KeyCode.S) then moveDir -= cam.CFrame.LookVector end
+        if uis:IsKeyDown(Enum.KeyCode.A) then moveDir -= cam.CFrame.RightVector end
+        if uis:IsKeyDown(Enum.KeyCode.D) then moveDir += cam.CFrame.RightVector end
+        if uis:IsKeyDown(Enum.KeyCode.Space) then moveDir += Vector3.new(0, 1, 0) end
+        if uis:IsKeyDown(Enum.KeyCode.LeftShift) then moveDir -= Vector3.new(0, 1, 0) end
+
+        -- Joystick buttons (mobile)
+        if _G.GregMobileMove then
+            moveDir += _G.GregMobileMove
+        end
+
+        bodyVel.Velocity = moveDir.Magnitude > 0 and moveDir.Unit * speed or Vector3.zero
+    end)
+end
+
+local function stopFly()
+    rs:UnbindFromRenderStep("GregFly")
+    if bodyVel then
+        bodyVel:Destroy()
+        bodyVel = nil
+    end
+end
+
+-- Instruction GUI
+local gui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
+gui.Name = "GregFlyGui"
+
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 280, 0, 120)
+frame.Position = UDim2.new(0.5, -140, 0.1, 0)
+frame.BackgroundColor3 = Color3.fromRGB(30,30,30)
+frame.BackgroundTransparency = 0.4
+frame.BorderSizePixel = 0
+frame.Parent = gui
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 30)
+title.BackgroundTransparency = 1
+title.Text = "Greg Fly Script"
+title.TextColor3 = Color3.fromRGB(0, 255, 200)
+title.Font = Enum.Font.GothamBold
+title.TextSize = 26
+title.Parent = frame
+
+local instructions = {
+    "Press E to toggle fly",
+    "Use WASD + Space + Shift to move",
+    "Mobile users: Use joystick buttons"
 }
 
-local function updateMobileMoveVector()
-    local x = 0
-    local y = 0
-    local z = 0
-
-    if mobileMoveState.W then z = z - 1 end
-    if mobileMoveState.S then z = z + 1 end
-    if mobileMoveState.A then x = x - 1 end
-    if mobileMoveState.D then x = x + 1 end
-    if mobileMoveState.Space then y = y + 1 end
-    if mobileMoveState.Shift then y = y - 1 end
-
-    _G.GregMobileMove = Vector3.new(x, y, z)
+for i, text in ipairs(instructions) do
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, -20, 0, 25)
+    label.Position = UDim2.new(0, 10, 0, 30 + (i-1)*30)
+    label.BackgroundTransparency = 1
+    label.Text = text
+    label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    label.Font = Enum.Font.GothamSemibold
+    label.TextSize = 20
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = frame
 end
 
-local function bindMobileButton(btn, keyName)
-    btn.MouseButton1Down:Connect(function()
-        mobileMoveState[keyName] = true
-        updateMobileMoveVector()
-    end)
-    btn.MouseButton1Up:Connect(function()
-        mobileMoveState[keyName] = false
-        updateMobileMoveVector()
-    end)
-    btn.TouchEnded:Connect(function()
-        mobileMoveState[keyName] = false
-        updateMobileMoveVector()
-    end)
-end
+-- Mobile joystick UI with dismiss button
+if uis.TouchEnabled then
+    _G.GregMobileMove = Vector3.zero
+    local directions = {
+        {Key = "↑", Vec = Vector3.new(0,1,0), Pos = UDim2.new(0.85, -30, 0.5, -80)},
+        {Key = "↓", Vec = Vector3.new(0,-1,0), Pos = UDim2.new(0.85, -30, 0.5, 40)},
+        {Key = "←", Vec = Vector3.new(-1,0,0), Pos = UDim2.new(0.85, -80, 0.5, -20)},
+        {Key = "→", Vec = Vector3.new(1,0,0), Pos = UDim2.new(0.85, 20, 0.5, -20)}
+    }
+    for _, dir in pairs(directions) do
+        local b = Instance.new("TextButton")
+        b.Size = UDim2.new(0,40,0,40)
+        b.Position = dir.Pos
+        b.Text = dir.Key
+        b.BackgroundColor3 = Color3.fromRGB(40,40,40)
+        b.TextColor3 = Color3.new(1,1,1)
+        b.Parent = gui
 
-bindMobileButton(btnW, "W")
-bindMobileButton(btnA, "A")
-bindMobileButton(btnS, "S")
-bindMobileButton(btnD, "D")
-bindMobileButton(btnSpace, "Space")
-bindMobileButton(btnShift, "Shift")
-
--- DISMISS MOBILE CONTROLS BUTTON
-local dismissBtn = Instance.new("TextButton")
-dismissBtn.Name = "DismissButton"
-dismissBtn.Size = UDim2.new(0, 120, 0, 30)
-dismissBtn.Position = UDim2.new(0.5, -60, 1, -35)
-dismissBtn.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-dismissBtn.BorderSizePixel = 0
-dismissBtn.Text = "Dismiss Mobile Controls"
-dismissBtn.Font = Enum.Font.GothamBold
-dismissBtn.TextSize = 16
-dismissBtn.TextColor3 = Color3.fromRGB(0, 255, 255)
-dismissBtn.Parent = mobileFrame
-
-dismissBtn.MouseButton1Click:Connect(function()
-    mobileFrame.Visible = false
-    for k,_ in pairs(mobileMoveState) do
-        mobileMoveState[k] = false
+        b.MouseButton1Down:Connect(function()
+            _G.GregMobileMove += dir.Vec
+        end)
+        b.MouseButton1Up:Connect(function()
+            _G.GregMobileMove -= dir.Vec
+        end)
+        b.TouchEnded:Connect(function()
+            _G.GregMobileMove -= dir.Vec
+        end)
     end
-    _G.GregMobileMove = Vector3.new(0,0,0)
-end)
 
--- MAKE FRAME DRAGGABLE FUNCTION
-local function makeDraggable(frame)
+    -- Dismiss mobile controls button
+    local dismissButton = Instance.new("TextButton")
+    dismissButton.Size = UDim2.new(0, 140, 0, 40)
+    dismissButton.Position = UDim2.new(0.85, -150, 0.8, -40)
+    dismissButton.Text = "Dismiss Mobile Controls"
+    dismissButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+    dismissButton.TextColor3 = Color3.new(1, 1, 1)
+    dismissButton.Parent = gui
+
+    dismissButton.MouseButton1Click:Connect(function()
+        for _, obj in pairs(gui:GetChildren()) do
+            if obj:IsA("TextButton") and obj ~= dismissButton then
+                obj:Destroy()
+            end
+        end
+        _G.GregMobileMove = Vector3.zero
+        dismissButton:Destroy()
+    end)
+
+    -- Make the whole GUI draggable
     local dragging, dragInput, dragStart, startPos
-
     frame.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
             dragging = true
@@ -270,19 +198,40 @@ local function makeDraggable(frame)
         end
     end)
 
-    UserInputService.InputChanged:Connect(function(input)
+    uis.InputChanged:Connect(function(input)
         if input == dragInput and dragging then
             local delta = input.Position - dragStart
             frame.Position = UDim2.new(
-                math.clamp(startPos.X.Scale,0,1),
+                math.clamp(startPos.X.Scale, 0, 1),
                 math.clamp(startPos.X.Offset + delta.X, 0, workspace.CurrentCamera.ViewportSize.X - frame.AbsoluteSize.X),
-                math.clamp(startPos.Y.Scale,0,1),
+                math.clamp(startPos.Y.Scale, 0, 1),
                 math.clamp(startPos.Y.Offset + delta.Y, 0, workspace.CurrentCamera.ViewportSize.Y - frame.AbsoluteSize.Y)
             )
         end
     end)
 end
 
--- MAKE UI DRAGGABLE
-makeDraggable(flyFrame)
-makeDraggable(mobileFrame)
+-- Reapply fly on respawn if flying
+player.CharacterAdded:Connect(function(char)
+    wait(1)
+    if flying and player.Character then
+        startFly(player.Character)
+    end
+end)
+
+-- Toggle fly on E
+uis.InputBegan:Connect(function(input, gpe)
+    if gpe then return end
+    if input.KeyCode == Enum.KeyCode.E then
+        if flying then
+            stopFly()
+            flying = false
+        else
+            if player.Character then
+                startFly(player.Character)
+                announceFly(player)
+                flying = true
+            end
+        end
+    end
+end)
