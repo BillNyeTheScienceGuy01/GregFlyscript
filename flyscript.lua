@@ -1,5 +1,5 @@
 -- GREG'S ULTIMATE FLY SCRIPT FOR KRNL
--- Cleaned up, platform-aware, mobile dismiss/reactivate, PC toggle, effects, and Adonis Loader
+-- Cleaned up, platform-aware, mobile dismiss/reactivate, PC toggle, effects, Adonis Loader, + Noclip (N key)
 
 local player = game.Players.LocalPlayer
 local uis = game:GetService("UserInputService")
@@ -27,13 +27,14 @@ end)
 local speed = 50
 local flying = false
 local activeFly = nil
+local noclip = false
 
 -- GUI
 local gui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
 local box = Instance.new("TextLabel")
 box.Size = UDim2.new(0, 360, 0, 80)
 box.Position = UDim2.new(0.5, -180, 0.05, 0)
-box.Text = "[GREG FLY ENABLED]\n• Press E to toggle Fly (PC)\n• Use Joystick (Mobile)\n• You are UNKICKABLE :)"
+box.Text = "[GREG FLY ENABLED]\n• Press E to toggle Fly (PC)\n• Press N to toggle Noclip\n• Use Joystick (Mobile)\n• You are UNKICKABLE :)"
 box.TextColor3 = Color3.new(1, 1, 1)
 box.TextScaled = true
 box.BackgroundColor3 = Color3.fromRGB(30,30,30)
@@ -100,18 +101,38 @@ local function stopFly()
 	end
 end
 
--- Toggle fly with E (PC)
+-- Noclip toggle function
+local function setNoclip(state)
+	noclip = state
+	local char = player.Character
+	if not char then return end
+	for _, part in pairs(char:GetDescendants()) do
+		if part:IsA("BasePart") then
+			part.CanCollide = not noclip
+		end
+	end
+end
+
+local function toggleNoclip()
+	setNoclip(not noclip)
+	box.Text = string.format("[GREG FLY ENABLED]\n• Press E to toggle Fly (PC)\n• Press N to toggle Noclip (%s)\n• Use Joystick (Mobile)\n• You are UNKICKABLE :)", noclip and "ON" or "OFF")
+end
+
+-- Toggle fly and noclip keys
 uis.InputBegan:Connect(function(input, gpe)
 	if gpe then return end
 	if input.KeyCode == Enum.KeyCode.E then
 		if flying then stopFly() else startFly() end
+	elseif input.KeyCode == Enum.KeyCode.N then
+		toggleNoclip()
 	end
 end)
 
--- Reapply fly on respawn
+-- Reapply fly and noclip on respawn
 player.CharacterAdded:Connect(function()
 	wait(1)
 	if flying then startFly() end
+	if noclip then setNoclip(true) end
 end)
 
 -- Mobile joystick controls
